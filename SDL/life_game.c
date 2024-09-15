@@ -1,20 +1,17 @@
 #include "sim.h"
 
-int field     [SIM_X_SIZE][SIM_Y_SIZE] = {0};
-int new_field [SIM_X_SIZE][SIM_Y_SIZE] = {0};
-
-void start_config () {
+void start_config (int* field, int* new_field) {
     int x, y;
 
     for (int i = 0; i < 52000; i++) {
         x = simRand() % SIM_X_SIZE;
         y = simRand() % SIM_Y_SIZE;
-        field     [x][y] = 1;
-        new_field [x][y] = 1;
+        field     [x + y*SIM_X_SIZE] = 1;
+        new_field [x + y*SIM_X_SIZE] = 1;
     }
 }
 
-int count_alive_neighbors (int x, int y) {
+int count_alive_neighbors (int x, int y, int* field) {
     int alive_neighbors = 0;
 
     for (int x_n = x-1; x_n <= x+1; x_n++) {
@@ -25,7 +22,7 @@ int count_alive_neighbors (int x, int y) {
             if (y_n < 0 || y_n >= SIM_Y_SIZE)
                 continue;
             
-            if (field[x_n][y_n])
+            if (field[x_n + y_n*SIM_X_SIZE])
                 alive_neighbors++;
         }
     }
@@ -33,39 +30,39 @@ int count_alive_neighbors (int x, int y) {
     return alive_neighbors;
 }
 
-void change_dead_cell (int x, int y) {
-    int alive_neighbors = count_alive_neighbors (x, y);
+void change_dead_cell (int x, int y, int* field, int* new_field) {
+    int alive_neighbors = count_alive_neighbors (x, y, field);
 
     if (alive_neighbors == 3)
-        new_field [x][y] = 1;
+        new_field [x + y*SIM_X_SIZE] = 1;
 }
 
-void change_alive_cell (int x, int y) {
-    int alive_neighbors = count_alive_neighbors (x, y);
+void change_alive_cell (int x, int y, int* field, int* new_field) {
+    int alive_neighbors = count_alive_neighbors (x, y, field);
 
     if (alive_neighbors > 3 || alive_neighbors < 2)
-        new_field [x][y] = 0;
+        new_field [x + y*SIM_X_SIZE] = 0;
 }
 
-void run_game () {
+void run_game (int* field, int* new_field) {
     while (1) {
         for (int x = 0; x < SIM_X_SIZE; x++) {
             for (int y = 0; y < SIM_Y_SIZE; y++) {
-                if (field[x][y] == 1) {
+                if (field[x + y*SIM_X_SIZE] == 1) {
                     simPutPixel(x, y, 0x800080);
-                    change_alive_cell (x, y);
+                    change_alive_cell (x, y, field, new_field);
                 }
 
                 else {
                     simPutPixel(x, y, 0xFFFFFF);
-                    change_dead_cell (x, y);
+                    change_dead_cell (x, y, field, new_field);
                 }    
             }
         }
 
         for (int x = 0; x < SIM_X_SIZE; x++) {
             for (int y = 0; y < SIM_Y_SIZE; y++) {
-                field [x][y] = new_field [x][y];
+                field [x + y*SIM_X_SIZE] = new_field [x + y*SIM_X_SIZE];
             }
         }
 
@@ -74,6 +71,8 @@ void run_game () {
 }
 
 void app () {
-    start_config ();
-    run_game();
+    int field     [SIM_X_SIZE * SIM_Y_SIZE] = {0};
+    int new_field [SIM_X_SIZE * SIM_Y_SIZE] = {0};
+    start_config (field, new_field);
+    run_game (field, new_field);
 }
