@@ -38,6 +38,8 @@ void change_dead_cell (int x, int y, int* field, int* new_field) {
 
     if (alive_neighbors == 3)
         new_field [x + y*SIM_X_SIZE] = 1;
+    else
+        new_field [x + y*SIM_X_SIZE] = 0;
 }
 
 void change_alive_cell (int x, int y, int* field, int* new_field) {
@@ -45,6 +47,8 @@ void change_alive_cell (int x, int y, int* field, int* new_field) {
 
     if (alive_neighbors > 3 || alive_neighbors < 2)
         new_field [x + y*SIM_X_SIZE] = 0;
+    else
+        new_field [x + y*SIM_X_SIZE] = 1;
 }
 
 void run_game (int* field, int* new_field) {
@@ -63,11 +67,9 @@ void run_game (int* field, int* new_field) {
             }
         }
 
-        for (int x = 0; x < SIM_X_SIZE; x++) {
-            for (int y = 0; y < SIM_Y_SIZE; y++) {
-                field [x + y*SIM_X_SIZE] = new_field [x + y*SIM_X_SIZE];
-            }
-        }
+        int* tmp = field;
+        field = new_field;
+        new_field = tmp;
 
         simFlush();
     } 
