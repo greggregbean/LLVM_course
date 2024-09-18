@@ -22,6 +22,9 @@ int count_alive_neighbors (int x, int y, int* field) {
             if (y_n < 0 || y_n >= SIM_Y_SIZE)
                 continue;
             
+            if (x_n == x && y_n == y)
+                continue;
+            
             if (field[x_n + y_n*SIM_X_SIZE])
                 alive_neighbors++;
         }
