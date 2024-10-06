@@ -15,10 +15,12 @@ namespace {
     IrCollector() : FunctionPass(ID) {}
 
     bool is_logger(StringRef name) {
-      return name == "bin_op_logger"     || name == "call_logger"     ||
-             name == "func_start_logger" || name == "func_end_logger" ||
-             name == "load_logger"       || name == "store_logger";
-    }
+      return name == "func_start_logger" || name == "func_end_logger"    || 
+             name == "call_logger"       || name == "bin_op_logger"      || 
+             name == "load_logger"       || name == "store_logger"       || 
+             name == "cast_logger"       || name == "unreachable_logger" ||
+             name == "uncond_br_logger"  || name == "cond_br_logger"     ||
+             name == "bb_start_logger"   ;}
 
     virtual bool runOnFunction(Function& F) {
       if (is_logger(F.getName()))
@@ -76,8 +78,7 @@ namespace {
       //--------------------------------------------------------------------------
       ArrayRef<Type*> load_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
                                           Type::getInt32Ty(ctx),               // val
-                                          Type::getInt32Ty(ctx),               // p_operand
-                                          builder.getInt8Ty()->getPointerTo(), // load_name
+                                          Type::getInt64Ty(ctx),               // p_operand
                                           Type::getInt64Ty(ctx)};              // inst_addr
 
       FunctionType* load_log_type = FunctionType::get(void_ret_type, load_param_types, false);
@@ -88,8 +89,7 @@ namespace {
       //--------------------------------------------------------------------------
       ArrayRef<Type*> store_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
                                            Type::getInt32Ty(ctx),               // v_operand
-                                           Type::getInt32Ty(ctx),               // p_operand
-                                           builder.getInt8Ty()->getPointerTo(), // store_name
+                                           Type::getInt64Ty(ctx),               // p_operand
                                            Type::getInt64Ty(ctx)};              // inst_addr
 
       FunctionType* store_log_type = FunctionType::get(void_ret_type, store_param_types, false);
@@ -108,6 +108,46 @@ namespace {
       FunctionCallee cast_log = F.getParent()->getOrInsertFunction("cast_logger", cast_log_type);
 
       //--------------------------------------------------------------------------
+      // Prepare call to unreachable_logger
+      //--------------------------------------------------------------------------
+      ArrayRef<Type*> unreachable_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
+                                                 Type::getInt64Ty(ctx)};              // inst_addr
+
+      FunctionType* unreachable_log_type = FunctionType::get(void_ret_type, unreachable_param_types, false);
+      FunctionCallee unreachable_log = F.getParent()->getOrInsertFunction("unreachable_logger", unreachable_log_type);
+
+      //--------------------------------------------------------------------------
+      // Prepare call to uncond_br_logger
+      //--------------------------------------------------------------------------
+      ArrayRef<Type*> uncond_br_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
+                                               Type::getInt64Ty(ctx),               // dest_addr
+                                               Type::getInt64Ty(ctx)};              // inst_addr
+
+      FunctionType* uncond_br_log_type = FunctionType::get(void_ret_type, uncond_br_param_types, false);
+      FunctionCallee uncond_br_log = F.getParent()->getOrInsertFunction("uncond_br_logger", uncond_br_log_type);
+
+      //--------------------------------------------------------------------------
+      // Prepare call to cond_br_logger
+      //--------------------------------------------------------------------------
+      ArrayRef<Type*> cond_br_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
+                                             Type::getInt32Ty(ctx),               // cond
+                                             Type::getInt64Ty(ctx),               // true_dest_addr
+                                             Type::getInt64Ty(ctx),               // false_dest_addr
+                                             Type::getInt64Ty(ctx)};              // inst_addr
+
+      FunctionType* cond_br_log_type = FunctionType::get(void_ret_type, cond_br_param_types, false);
+      FunctionCallee cond_br_log = F.getParent()->getOrInsertFunction("cond_br_logger", cond_br_log_type);
+
+      //--------------------------------------------------------------------------
+      // Prepare call to bb_start_logger
+      //--------------------------------------------------------------------------
+      ArrayRef<Type*> bb_start_param_types = {builder.getInt8Ty()->getPointerTo(), // bb_func_name
+                                              Type::getInt64Ty(ctx)};              // bb_addr
+
+      FunctionType* bb_start_log_type = FunctionType::get(void_ret_type, bb_start_param_types, false);
+      FunctionCallee bb_start_log = F.getParent()->getOrInsertFunction("bb_start_logger", bb_start_log_type);
+
+      //--------------------------------------------------------------------------
       // Start inserting calls
       //--------------------------------------------------------------------------
       // Insert call to func_start_logger in the function begin
@@ -119,6 +159,14 @@ namespace {
       builder.CreateCall(func_start_log, args);
 
       for (auto& B : F) {
+        // Insert call to bb_start_logger in the bb begin
+        builder.SetInsertPoint(&B.front());
+
+        Value* bb_func_name = builder.CreateGlobalStringPtr(F.getName());
+        Value* bb_addr = ConstantInt::get(builder.getInt64Ty(), (int64_t)(&B));
+        Value* args[] = {bb_func_name, bb_addr};
+        builder.CreateCall(bb_start_log, args);
+
         for (auto& I : B) {
           Value* inst_addr = ConstantInt::get(builder.getInt64Ty(), (int64_t)(&I));
 
@@ -157,44 +205,74 @@ namespace {
             builder.CreateCall(bin_op_log, args);
           }
 
-          // Insert call to load_logger() after load
+          // Insert call to load_logger() after LOAD
           else if (auto* load = dyn_cast<LoadInst>(&I)) {
             builder.SetInsertPoint(load);
             builder.SetInsertPoint(&B, ++builder.GetInsertPoint());
            
             Value* p_operand = load->getPointerOperand();
-            Type* type = load->getPointerOperandType();
             Value* func_name = builder.CreateGlobalStringPtr(F.getName());
-            Value* load_name = builder.CreateGlobalStringPtr(load->getOpcodeName());
-            Value* args[] = {func_name, load, p_operand, load_name, inst_addr};
+            Value* args[] = {func_name, load, p_operand, inst_addr};
             builder.CreateCall(load_log, args);
           }
 
-          // Insert call to store_logger() after store
+          // Insert call to store_logger() after STORE
           else if (auto* store = dyn_cast<StoreInst>(&I)) {
             builder.SetInsertPoint(store);
             builder.SetInsertPoint(&B, ++builder.GetInsertPoint());
 
             Value* v_operand = store->getValueOperand();
             Value* p_operand = store->getPointerOperand();
-            Type* type = store->getPointerOperandType();
             Value* func_name  = builder.CreateGlobalStringPtr(F.getName());
-            Value* store_name = builder.CreateGlobalStringPtr(store->getOpcodeName());
-            Value* args[] = {func_name, v_operand, p_operand, store_name, inst_addr};
+            Value* args[] = {func_name, v_operand, p_operand, inst_addr};
             builder.CreateCall(store_log, args);
           }
 
+          // Insert call to cast_logger() after CAST
           else if (auto* cast = dyn_cast<CastInst>(&I)) {
             builder.SetInsertPoint(cast);
             builder.SetInsertPoint(&B, ++builder.GetInsertPoint());
 
             Value* operand = cast->getOperand(0);
-            Type* src_type = cast->getSrcTy();
-            Type* dest_type = cast->getDestTy();
             Value* func_name = builder.CreateGlobalStringPtr(F.getName());
             Value* cast_name = builder.CreateGlobalStringPtr(cast->getOpcodeName());
             Value* args[] = {func_name, cast, operand, cast_name, inst_addr};
             builder.CreateCall(cast_log, args);
+          }
+          
+          // Insert call to unreachable_logger() before UNREACHABLE
+          else if (auto* unreachable = dyn_cast<UnreachableInst>(&I)) {
+            builder.SetInsertPoint(unreachable);
+
+            Value* func_name = builder.CreateGlobalStringPtr(F.getName());
+            Value* args[] = {func_name, inst_addr};
+            builder.CreateCall(unreachable_log, args);
+          }
+
+          // Insert call to br_logger() before BR
+          else if (auto* br = dyn_cast<BranchInst>(&I)) {
+            builder.SetInsertPoint(br);
+
+            if (br->isUnconditional()) {
+              Value* func_name = builder.CreateGlobalStringPtr(F.getName());
+              Value* dest_bb = br->getOperand(0);
+              Value* dest_addr = ConstantInt::get(builder.getInt64Ty(), (int64_t)(dest_bb));
+              Value* args[] = {func_name, dest_addr, inst_addr};
+              builder.CreateCall(uncond_br_log, args);
+            }
+
+            else { // if (br->isConditional())
+              Value* func_name = builder.CreateGlobalStringPtr(F.getName());
+              Value* cond = br->getCondition();
+              Value* true_dest_bb = br->getOperand (1);
+              Value* false_dest_bb = br->getOperand (2);
+              Value* true_dest_addr = ConstantInt::get(builder.getInt64Ty(), (int64_t)(true_dest_bb));
+              Value* false_dest_addr = ConstantInt::get(builder.getInt64Ty(), (int64_t)(false_dest_bb));
+              Value* args[] = {func_name, cond, true_dest_addr, false_dest_addr};
+              builder.CreateCall(cond_br_log, args);
+            }
+
+
           }
 
           else {
