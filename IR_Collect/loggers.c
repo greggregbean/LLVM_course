@@ -43,3 +43,15 @@ void uncond_br_logger (char* func_name, long int dest_addr, long int inst_addr) 
 void cond_br_logger (char* func_name, int cond, long int true_dest_addr, long int false_dest_addr, long int inst_addr) {
     printf("      br %d, label 0x%lx, label 0x%lx;	{0x%lx} in '%s'\n", cond, true_dest_addr, false_dest_addr, inst_addr, func_name);
 }
+
+void alloca_logger (char* func_name, int val, long int inst_addr){
+    printf("      %d = alloca;					    {0x%lx} in '%s'\n", val, inst_addr, func_name);
+}
+
+void icmp_logger (char* func_name, int val, char* p_name, int lhs, int rhs, long int inst_addr){
+    printf("      %d = icmp %s %d, %d			    {0x%lx} in '%s'\n", val, p_name, lhs, rhs, inst_addr, func_name);
+}
+
+void getelementptr_logger (char* func_name, int val, int ptr_op, long int inst_addr){
+    printf("      %d = getelementptr %d			    {0x%lx} in '%s'\n", val, ptr_op, inst_addr, func_name);
+}

@@ -10,17 +10,20 @@
 using namespace llvm;
 
 namespace {
+
   struct IrCollector : public FunctionPass {
     static char ID;
+
     IrCollector() : FunctionPass(ID) {}
 
     bool is_logger(StringRef name) {
-      return name == "func_start_logger" || name == "func_end_logger"    || 
-             name == "call_logger"       || name == "bin_op_logger"      || 
-             name == "load_logger"       || name == "store_logger"       || 
-             name == "cast_logger"       || name == "unreachable_logger" ||
-             name == "uncond_br_logger"  || name == "cond_br_logger"     ||
-             name == "bb_start_logger"   ;}
+      return name == "func_start_logger" || name == "func_end_logger"     || 
+             name == "call_logger"       || name == "bin_op_logger"       || 
+             name == "load_logger"       || name == "store_logger"        || 
+             name == "cast_logger"       || name == "unreachable_logger"  ||
+             name == "uncond_br_logger"  || name == "cond_br_logger"      ||
+             name == "bb_start_logger"   || name == "alloca_logger"       ||
+             name == "icmp_logger"       || name == "getelementptr_logger";}
 
     virtual bool runOnFunction(Function& F) {
       if (is_logger(F.getName()))
@@ -38,7 +41,7 @@ namespace {
       //--------------------------------------------------------------------------
       ArrayRef<Type*> func_start_param_types = {builder.getInt8Ty()->getPointerTo()}; // func_name
 
-      FunctionType* func_start_log_type = FunctionType::get(void_ret_type, func_start_param_types, false);
+      auto* func_start_log_type = FunctionType::get(void_ret_type, func_start_param_types, false);
       FunctionCallee func_start_log = F.getParent()->getOrInsertFunction("func_start_logger", func_start_log_type);
 
       //--------------------------------------------------------------------------
@@ -47,7 +50,7 @@ namespace {
       ArrayRef<Type*> func_end_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
                                               Type::getInt64Ty(ctx)};              // inst_addr
 
-      FunctionType* func_end_log_type = FunctionType::get(void_ret_type, func_end_param_types, false);
+      auto* func_end_log_type = FunctionType::get(void_ret_type, func_end_param_types, false);
       FunctionCallee func_end_log = F.getParent()->getOrInsertFunction("func_end_logger", func_end_log_type);
 
       //--------------------------------------------------------------------------
@@ -57,7 +60,7 @@ namespace {
                                           builder.getInt8Ty()->getPointerTo(), // callee_name
                                           Type::getInt64Ty(ctx)};              // inst_addr
 
-      FunctionType* call_log_type = FunctionType::get(void_ret_type, call_param_types, false);
+      auto* call_log_type = FunctionType::get(void_ret_type, call_param_types, false);
       FunctionCallee call_log = F.getParent()->getOrInsertFunction("call_logger", call_log_type);
 
       //--------------------------------------------------------------------------
@@ -70,7 +73,7 @@ namespace {
                                             builder.getInt8Ty()->getPointerTo(), // op_name
                                             Type::getInt64Ty(ctx)};              // inst_addr
 
-      FunctionType* bin_op_log_type = FunctionType::get(void_ret_type, bin_op_param_types, false);
+      auto* bin_op_log_type = FunctionType::get(void_ret_type, bin_op_param_types, false);
       FunctionCallee bin_op_log = F.getParent()->getOrInsertFunction("bin_op_logger", bin_op_log_type);
 
       //--------------------------------------------------------------------------
@@ -81,7 +84,7 @@ namespace {
                                           Type::getInt64Ty(ctx),               // p_operand
                                           Type::getInt64Ty(ctx)};              // inst_addr
 
-      FunctionType* load_log_type = FunctionType::get(void_ret_type, load_param_types, false);
+      auto* load_log_type = FunctionType::get(void_ret_type, load_param_types, false);
       FunctionCallee load_log = F.getParent()->getOrInsertFunction("load_logger", load_log_type);
 
       //--------------------------------------------------------------------------
@@ -92,7 +95,7 @@ namespace {
                                            Type::getInt64Ty(ctx),               // p_operand
                                            Type::getInt64Ty(ctx)};              // inst_addr
 
-      FunctionType* store_log_type = FunctionType::get(void_ret_type, store_param_types, false);
+      auto* store_log_type = FunctionType::get(void_ret_type, store_param_types, false);
       FunctionCallee store_log = F.getParent()->getOrInsertFunction("store_logger", store_log_type);
 
       //--------------------------------------------------------------------------
@@ -104,7 +107,7 @@ namespace {
                                           builder.getInt8Ty()->getPointerTo(), // cast_name
                                           Type::getInt64Ty(ctx)};              // inst_addr
 
-      FunctionType* cast_log_type = FunctionType::get(void_ret_type, cast_param_types, false);
+      auto* cast_log_type = FunctionType::get(void_ret_type, cast_param_types, false);
       FunctionCallee cast_log = F.getParent()->getOrInsertFunction("cast_logger", cast_log_type);
 
       //--------------------------------------------------------------------------
@@ -113,7 +116,7 @@ namespace {
       ArrayRef<Type*> unreachable_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
                                                  Type::getInt64Ty(ctx)};              // inst_addr
 
-      FunctionType* unreachable_log_type = FunctionType::get(void_ret_type, unreachable_param_types, false);
+      auto* unreachable_log_type = FunctionType::get(void_ret_type, unreachable_param_types, false);
       FunctionCallee unreachable_log = F.getParent()->getOrInsertFunction("unreachable_logger", unreachable_log_type);
 
       //--------------------------------------------------------------------------
@@ -123,7 +126,7 @@ namespace {
                                                Type::getInt64Ty(ctx),               // dest_addr
                                                Type::getInt64Ty(ctx)};              // inst_addr
 
-      FunctionType* uncond_br_log_type = FunctionType::get(void_ret_type, uncond_br_param_types, false);
+      auto* uncond_br_log_type = FunctionType::get(void_ret_type, uncond_br_param_types, false);
       FunctionCallee uncond_br_log = F.getParent()->getOrInsertFunction("uncond_br_logger", uncond_br_log_type);
 
       //--------------------------------------------------------------------------
@@ -135,7 +138,7 @@ namespace {
                                              Type::getInt64Ty(ctx),               // false_dest_addr
                                              Type::getInt64Ty(ctx)};              // inst_addr
 
-      FunctionType* cond_br_log_type = FunctionType::get(void_ret_type, cond_br_param_types, false);
+      auto* cond_br_log_type = FunctionType::get(void_ret_type, cond_br_param_types, false);
       FunctionCallee cond_br_log = F.getParent()->getOrInsertFunction("cond_br_logger", cond_br_log_type);
 
       //--------------------------------------------------------------------------
@@ -144,8 +147,42 @@ namespace {
       ArrayRef<Type*> bb_start_param_types = {builder.getInt8Ty()->getPointerTo(), // bb_func_name
                                               Type::getInt64Ty(ctx)};              // bb_addr
 
-      FunctionType* bb_start_log_type = FunctionType::get(void_ret_type, bb_start_param_types, false);
+      auto* bb_start_log_type = FunctionType::get(void_ret_type, bb_start_param_types, false);
       FunctionCallee bb_start_log = F.getParent()->getOrInsertFunction("bb_start_logger", bb_start_log_type);
+
+      //--------------------------------------------------------------------------
+      // Prepare call to alloca_logger
+      //--------------------------------------------------------------------------
+      ArrayRef<Type*> alloca_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
+                                            Type::getInt32Ty(ctx),               // val
+                                            Type::getInt64Ty(ctx)};              // inst_addr
+
+      auto* alloca_log_type = FunctionType::get(void_ret_type, alloca_param_types, false);
+      FunctionCallee alloca_log = F.getParent()->getOrInsertFunction("alloca_logger", alloca_log_type);
+
+      //--------------------------------------------------------------------------
+      // Prepare call to icmp_logger
+      //--------------------------------------------------------------------------
+      ArrayRef<Type*> icmp_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
+                                          Type::getInt32Ty(ctx),               // val
+                                          builder.getInt8Ty()->getPointerTo(), // p_name
+                                          Type::getInt32Ty(ctx),               // lhs
+                                          Type::getInt32Ty(ctx),               // rhs
+                                          Type::getInt64Ty(ctx)};              // inst_addr
+
+      auto* icmp_log_type = FunctionType::get(void_ret_type, icmp_param_types, false);
+      FunctionCallee icmp_log = F.getParent()->getOrInsertFunction("icmp_logger", icmp_log_type);
+
+      //--------------------------------------------------------------------------
+      // Prepare call to getelementptr_logger
+      //--------------------------------------------------------------------------
+      ArrayRef<Type*> getelementptr_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
+                                                   Type::getInt32Ty(ctx),               // val
+                                                   Type::getInt32Ty(ctx),               // ptr_op
+                                                   Type::getInt64Ty(ctx)};              // inst_addr
+
+      auto* getelementptr_log_type = FunctionType::get(void_ret_type, getelementptr_param_types, false);
+      FunctionCallee getelementptr_log = F.getParent()->getOrInsertFunction("getelementptr_logger", getelementptr_log_type);
 
       //--------------------------------------------------------------------------
       // Start inserting calls
@@ -271,10 +308,43 @@ namespace {
               Value* args[] = {func_name, cond, true_dest_addr, false_dest_addr};
               builder.CreateCall(cond_br_log, args);
             }
-
-
           }
 
+          // Insert call to alloca_logger() after ALLOCA
+          else if (auto* alloca = dyn_cast<AllocaInst>(&I)) {
+            builder.SetInsertPoint(alloca);
+            builder.SetInsertPoint(&B, ++builder.GetInsertPoint());
+
+            Value* func_name = builder.CreateGlobalStringPtr(F.getName());
+            Value* args[] = {func_name, alloca, inst_addr};
+            builder.CreateCall(alloca_log, args);
+          }
+
+          // Insert call to icmp_logger() after ICMP
+          else if (auto* icmp = dyn_cast<ICmpInst>(&I)) {
+            builder.SetInsertPoint(icmp);
+            builder.SetInsertPoint(&B, ++builder.GetInsertPoint());
+
+            Value* func_name = builder.CreateGlobalStringPtr(F.getName());
+            Value* p_name = builder.CreateGlobalStringPtr(ICmpInst::getPredicateName(icmp->getPredicate()));
+            Value* lhs = icmp->getOperand(0);
+            Value* rhs = icmp->getOperand(1);
+            Value* args[] = {func_name, icmp, p_name, lhs, rhs, inst_addr};
+            builder.CreateCall(icmp_log, args);
+          }
+
+          // Insert call to getelementptr_logger() after GETELEMENTPTR
+          else if (auto* getelementptr = dyn_cast<GetElementPtrInst>(&I)) {
+            builder.SetInsertPoint(getelementptr);
+            builder.SetInsertPoint(&B, ++builder.GetInsertPoint());
+
+            Value* func_name = builder.CreateGlobalStringPtr(F.getName());
+            Value* ptr_op = getelementptr->getPointerOperand();
+            Value* args[] = {func_name, getelementptr, ptr_op, inst_addr};
+            builder.CreateCall(getelementptr_log, args);
+          }
+
+          // If we got some instructions, that were not mantioned above
           else {
             outs() << I.getOpcodeName() << "\n";
           }
