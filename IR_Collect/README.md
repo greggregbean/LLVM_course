@@ -2,16 +2,17 @@
 This LLVM pass inserts calls to loggers, which dynamically print IR of executed instructions.
 
 
-## Usage:
+## Build:
 ```
-clang++ ir_collect.cpp -fPIC -shared -I`llvm-config --includedir` -o ir_collect.so
-clang -O2 -lSDL2 -Xclang -load -Xclang ./ir_collect.so ../SDL/main.c ../SDL/sim.c ../SDL/life_game.c loggers.c  -flegacy-pass-manager
-./a.out > ir.log
+clang++ -O2 ir_collect.cpp -fPIC -shared -I$(llvm-config --includedir) -o ir_collect.so
+clang -O2 -fpass-plugin=./ir_collect.so loggers.c ../SDL/life_game.c -c
+clang -O2 ../SDL/sim.c ../SDL/main.c -c
+clang -O2 sim.o main.o loggers.o life_game.o -o run -lSDL2
 ```
 
-## Ir dump:
+## Run:
 ```
-clang -Xclang -load -Xclang ./ir_collect.so ../SDL/main.c ../SDL/sim.c ../SDL/life_game.c -emit-llvm -S -flegacy-pass-manager
+./run > ir.log
 ```
 
 ## Analyze:

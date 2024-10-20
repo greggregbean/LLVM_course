@@ -3,7 +3,7 @@
 void start_config (int* field, int* new_field) {
     int x, y;
 
-    for (int i = 0; i < 52000; i++) {
+    for (int i = 0; i < 100000; i++) {
         x = simRand() % SIM_X_SIZE;
         y = simRand() % SIM_Y_SIZE;
         field     [x + y*SIM_X_SIZE] = 1;

@@ -1,33 +1,23 @@
-#include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/InstrTypes.h"
-#include "llvm/IR/LegacyPassManager.h"
-#include "llvm/IR/Module.h"
-#include "llvm/Pass.h"
-#include "llvm/Support/raw_ostream.h"
-#include "llvm/Transforms/IPO/PassManagerBuilder.h"
-#include "llvm/Transforms/Utils/BasicBlockUtils.h"
+#include "llvm/Passes/PassBuilder.h"
+#include "llvm/Passes/PassPlugin.h"
 using namespace llvm;
 
-namespace {
+struct MyModPass : public PassInfoMixin<MyModPass> {
+  bool is_logger(StringRef name) {
+    return  name == "func_start_logger" || name == "func_end_logger"     || 
+            name == "call_logger"       || name == "bin_op_logger"       || 
+            name == "load_logger"       || name == "store_logger"        || 
+            name == "cast_logger"       || name == "unreachable_logger"  ||
+            name == "uncond_br_logger"  || name == "cond_br_logger"      ||
+            name == "alloca_logger"     || name == "icmp_logger"         || 
+            name == "getelementptr_logger";}
 
-  struct IrCollector : public FunctionPass {
-    static char ID;
+  PreservedAnalyses run(Module &M, ModuleAnalysisManager &AM) {
+    for (auto &F : M) {
 
-    IrCollector() : FunctionPass(ID) {}
-
-    bool is_logger(StringRef name) {
-      return name == "func_start_logger" || name == "func_end_logger"     || 
-             name == "call_logger"       || name == "bin_op_logger"       || 
-             name == "load_logger"       || name == "store_logger"        || 
-             name == "cast_logger"       || name == "unreachable_logger"  ||
-             name == "uncond_br_logger"  || name == "cond_br_logger"      ||
-             name == "bb_start_logger"   || name == "alloca_logger"       ||
-             name == "icmp_logger"       || name == "getelementptr_logger";}
-
-    virtual bool runOnFunction(Function& F) {
-      if (is_logger(F.getName()))
-        return false;
+      if (is_logger(F.getName()) || F.isDeclaration())
+        continue;
 
       //--------------------------------------------------------------------------
       // Builder
@@ -91,9 +81,9 @@ namespace {
       // Prepare call to store_logger
       //--------------------------------------------------------------------------
       ArrayRef<Type*> store_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
-                                           Type::getInt32Ty(ctx),               // v_operand
-                                           Type::getInt64Ty(ctx),               // p_operand
-                                           Type::getInt64Ty(ctx)};              // inst_addr
+                                            Type::getInt32Ty(ctx),               // v_operand
+                                            Type::getInt64Ty(ctx),               // p_operand
+                                            Type::getInt64Ty(ctx)};              // inst_addr
 
       auto* store_log_type = FunctionType::get(void_ret_type, store_param_types, false);
       FunctionCallee store_log = F.getParent()->getOrInsertFunction("store_logger", store_log_type);
@@ -114,7 +104,7 @@ namespace {
       // Prepare call to unreachable_logger
       //--------------------------------------------------------------------------
       ArrayRef<Type*> unreachable_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
-                                                 Type::getInt64Ty(ctx)};              // inst_addr
+                                                  Type::getInt64Ty(ctx)};              // inst_addr
 
       auto* unreachable_log_type = FunctionType::get(void_ret_type, unreachable_param_types, false);
       FunctionCallee unreachable_log = F.getParent()->getOrInsertFunction("unreachable_logger", unreachable_log_type);
@@ -123,8 +113,8 @@ namespace {
       // Prepare call to uncond_br_logger
       //--------------------------------------------------------------------------
       ArrayRef<Type*> uncond_br_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
-                                               Type::getInt64Ty(ctx),               // dest_addr
-                                               Type::getInt64Ty(ctx)};              // inst_addr
+                                                Type::getInt64Ty(ctx),               // dest_addr
+                                                Type::getInt64Ty(ctx)};              // inst_addr
 
       auto* uncond_br_log_type = FunctionType::get(void_ret_type, uncond_br_param_types, false);
       FunctionCallee uncond_br_log = F.getParent()->getOrInsertFunction("uncond_br_logger", uncond_br_log_type);
@@ -133,22 +123,13 @@ namespace {
       // Prepare call to cond_br_logger
       //--------------------------------------------------------------------------
       ArrayRef<Type*> cond_br_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
-                                             Type::getInt32Ty(ctx),               // cond
-                                             Type::getInt64Ty(ctx),               // true_dest_addr
-                                             Type::getInt64Ty(ctx),               // false_dest_addr
-                                             Type::getInt64Ty(ctx)};              // inst_addr
+                                              Type::getInt32Ty(ctx),               // cond
+                                              Type::getInt64Ty(ctx),               // true_dest_addr
+                                              Type::getInt64Ty(ctx),               // false_dest_addr
+                                              Type::getInt64Ty(ctx)};              // inst_addr
 
       auto* cond_br_log_type = FunctionType::get(void_ret_type, cond_br_param_types, false);
       FunctionCallee cond_br_log = F.getParent()->getOrInsertFunction("cond_br_logger", cond_br_log_type);
-
-      //--------------------------------------------------------------------------
-      // Prepare call to bb_start_logger
-      //--------------------------------------------------------------------------
-      ArrayRef<Type*> bb_start_param_types = {builder.getInt8Ty()->getPointerTo(), // bb_func_name
-                                              Type::getInt64Ty(ctx)};              // bb_addr
-
-      auto* bb_start_log_type = FunctionType::get(void_ret_type, bb_start_param_types, false);
-      FunctionCallee bb_start_log = F.getParent()->getOrInsertFunction("bb_start_logger", bb_start_log_type);
 
       //--------------------------------------------------------------------------
       // Prepare call to alloca_logger
@@ -177,9 +158,9 @@ namespace {
       // Prepare call to getelementptr_logger
       //--------------------------------------------------------------------------
       ArrayRef<Type*> getelementptr_param_types = {builder.getInt8Ty()->getPointerTo(), // func_name
-                                                   Type::getInt32Ty(ctx),               // val
-                                                   Type::getInt32Ty(ctx),               // ptr_op
-                                                   Type::getInt64Ty(ctx)};              // inst_addr
+                                                    Type::getInt32Ty(ctx),               // val
+                                                    Type::getInt32Ty(ctx),               // ptr_op
+                                                    Type::getInt64Ty(ctx)};              // inst_addr
 
       auto* getelementptr_log_type = FunctionType::get(void_ret_type, getelementptr_param_types, false);
       FunctionCallee getelementptr_log = F.getParent()->getOrInsertFunction("getelementptr_logger", getelementptr_log_type);
@@ -196,14 +177,6 @@ namespace {
       builder.CreateCall(func_start_log, args);
 
       for (auto& B : F) {
-        // Insert call to bb_start_logger in the bb begin
-        builder.SetInsertPoint(&B.front());
-
-        Value* bb_func_name = builder.CreateGlobalStringPtr(F.getName());
-        Value* bb_addr = ConstantInt::get(builder.getInt64Ty(), (int64_t)(&B));
-        Value* args[] = {bb_func_name, bb_addr};
-        builder.CreateCall(bb_start_log, args);
-
         for (auto& I : B) {
           Value* inst_addr = ConstantInt::get(builder.getInt64Ty(), (int64_t)(&I));
 
@@ -233,7 +206,7 @@ namespace {
           else if (auto* bin_op = dyn_cast<BinaryOperator>(&I)) {
             builder.SetInsertPoint(bin_op);
             builder.SetInsertPoint(&B, ++builder.GetInsertPoint());
-           
+            
             Value* lhs = bin_op->getOperand(0);
             Value* rhs = bin_op->getOperand(1);
             Value* func_name = builder.CreateGlobalStringPtr(F.getName());
@@ -246,7 +219,7 @@ namespace {
           else if (auto* load = dyn_cast<LoadInst>(&I)) {
             builder.SetInsertPoint(load);
             builder.SetInsertPoint(&B, ++builder.GetInsertPoint());
-           
+            
             Value* p_operand = load->getPointerOperand();
             Value* func_name = builder.CreateGlobalStringPtr(F.getName());
             Value* args[] = {func_name, load, p_operand, inst_addr};
@@ -351,18 +324,26 @@ namespace {
 
         }
       }
-
-      return true;
     }
+    
+    return PreservedAnalyses::none();  
+  }
+};
+
+PassPluginLibraryInfo getPassPluginInfo() {
+  const auto callback = [](PassBuilder &PB) {
+    PB.registerOptimizerLastEPCallback([&](ModulePassManager &MPM, auto) {
+      MPM.addPass(MyModPass{});
+      return true;
+    });
   };
-}
 
-char IrCollector::ID = 0;
+  return {LLVM_PLUGIN_API_VERSION, "MyPlugin", "0.0.1", callback};
+};
 
-static void registerIrCollector(const PassManagerBuilder &,
-                         legacy::PassManagerBase &PM) {
-  PM.add(new IrCollector());
+/* When a plugin is loaded by the driver, it will call this entry point to
+obtain information about this plugin and about how to register its passes.
+*/
+extern "C" LLVM_ATTRIBUTE_WEAK PassPluginLibraryInfo llvmGetPassPluginInfo() {
+  return getPassPluginInfo();
 }
-static RegisterStandardPasses
-  RegisterIrCollector(PassManagerBuilder::EP_EarlyAsPossible,
-                 registerIrCollector);
