@@ -12,8 +12,8 @@ void func_end_logger (char* func_name, long int inst_addr){
     printf("} END OF '%s';                          {0x%lx}\n", func_name, inst_addr);
 }
 
-void call_logger (char* callee, char* caller, long int inst_addr){
-    printf("    call '%s' -> '%s';                  {0x%lx} in '%s' [call] \n", callee, caller, inst_addr, caller);
+void call_logger (char* caller, char* callee, long int inst_addr){
+    printf("    call '%s' -> '%s';                  {0x%lx} in '%s' [call] \n", caller, callee, inst_addr, caller);
 }
 
 void bin_op_logger (char* func_name, int val, int arg0, int arg1, char* bin_op_name, long int inst_addr){
@@ -45,13 +45,13 @@ void cond_br_logger (char* func_name, int cond, long int true_dest_addr, long in
 }
 
 void alloca_logger (char* func_name, int val, long int inst_addr){
-    printf("   %d = alloca;					        {0x%lx} in '%s' [alloca] \n", val, inst_addr, func_name);
+    printf("    %d = alloca;					        {0x%lx} in '%s' [alloca] \n", val, inst_addr, func_name);
 }
 
 void icmp_logger (char* func_name, int val, char* p_name, int lhs, int rhs, long int inst_addr){
-    printf("   %d = icmp %s %d, %d			        {0x%lx} in '%s' [icmp] \n", val, p_name, lhs, rhs, inst_addr, func_name);
+    printf("    %d = icmp %s %d, %d			        {0x%lx} in '%s' [icmp] \n", val, p_name, lhs, rhs, inst_addr, func_name);
 }
 
 void getelementptr_logger (char* func_name, int val, int ptr_op, long int inst_addr){
-    printf("   %d = getelementptr %d			    {0x%lx} in '%s' [getptr] \n", val, ptr_op, inst_addr, func_name);
+    printf("    %d = getelementptr %d			    {0x%lx} in '%s' [getptr] \n", val, ptr_op, inst_addr, func_name);
 }
